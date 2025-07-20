@@ -115,6 +115,9 @@ const GenericModal = ({ isOpen, onClose, title, children, actions }) => {
   );
 };
 
+// SVG for the dropdown arrow (URL-encoded)
+const SVG_ARROW_DOWN = "data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='%23007bff'%3e%3cpath%20d='M7%2010l5%205%205-5z'/%3e%3c/svg%3e";
+
 
 // Main App component
 const App = () => {
@@ -270,6 +273,7 @@ const App = () => {
           ...doc.data()
         }));
         setClinics(fetchedClinics);
+        console.log("Fetched clinics:", fetchedClinics); // ADDED LOG
 
         // If no clinics exist, seed the database
         if (fetchedClinics.length === 0) {
@@ -329,7 +333,7 @@ const App = () => {
             };
           }
           clinicsData[entry.clinic].patients.add(entry.mrn);
-          clinicsData[entry.clinic].totalDurationMinutes += entry.time_spent; // Sum the 'time_spent' field (minutes)
+          clinicsData[entry.clinic].totalDurationMinutes += clinicsData[entry.clinic].totalDurationMinutes + entry.time_spent; // Sum the 'time_spent' field (minutes)
           clinicsData[entry.clinic].entries.push(entry);
         });
 
@@ -758,6 +762,8 @@ const App = () => {
   const filteredClinics = clinics.filter(c =>
     c.name.toLowerCase().includes(clinicSearchQuery.toLowerCase())
   );
+  console.log("Clinic search query:", clinicSearchQuery); // ADDED LOG
+  console.log("Filtered clinics for dropdown:", filteredClinics); // ADDED LOG
 
 
   if (loading) {
@@ -922,7 +928,7 @@ const App = () => {
                   value={clinic}
                   onChange={(e) => setClinic(e.target.value)}
                   disabled={loading} // Disable input while loading
-                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'%23007bff\'%3e%3cpath%20d=\'M7%2010l5%205%205-5z\'/%3e%3c/svg%3e')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select a Clinic</option>
                   {filteredClinics.map((c) => (
@@ -975,6 +981,7 @@ const App = () => {
                         <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(entry.mrn)}>
                           {entry.mrn}
                         </td>
+                        <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.clinic}</td>
                         <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.time_spent}</td>
                         <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_in))}>
                           {extractTimeFromFirestoreFormat(entry.time_in)}
@@ -1132,7 +1139,7 @@ const App = () => {
                   id="searchClinic"
                   value={searchClinic}
                   onChange={(e) => setSearchClinic(e.target.value)}
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'%23007bff\'%3e%3cpath%20d=\'M7%2010l5%205%205-5z\'/%3e%3c/svg%3e')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
                 >
                   <option value="">Select a Clinic</option>
                   {clinics.map((c) => (
@@ -1368,7 +1375,7 @@ const App = () => {
                 id="editClinic"
                 value={editingPatient.clinic}
                 onChange={(e) => setEditingPatient({ ...editingPatient, clinic: e.target.value })}
-                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'%23007bff\'%3e%3cpath%20d=\'M7%2010l5%205%205-5z\'/%3e%3c/svg%3e')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
               >
                 <option value="">Select a Clinic</option>
                 {clinics.map((c) => (
