@@ -1,0 +1,14 @@
+/* You can add global styles here or import them into App.js */
+/* Example: */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom font import (if not using Tailwind's default) */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Poppins', sans-serif;
+}
+
+/* Add any other custom CSS you had or want here */
