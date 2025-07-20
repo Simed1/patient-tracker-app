@@ -1,3 +1,4 @@
+/* eslint-disable no-undef */ // Disable no-undef rule for this file to allow __app_id, __firebase_config, Html5QrcodeScanner
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
@@ -9,7 +10,8 @@ const { Html5QrcodeScanner } = window; // Access Html5QrcodeScanner from the glo
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 // Corrected the variable name from __firebase_firebaseConfig to __firebase_config
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? initialAuthToken : null;
+// Corrected the assignment of initialAuthToken
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 // Hardcoded initial clinics (similar to your dep.csv for demonstration)
 const initialClinics = [
@@ -85,6 +87,34 @@ const combineDateAndTime = (dateYYYYMMDD, timeHHMM) => {
   }
 };
 
+// Generic Modal Component
+const GenericModal = ({ isOpen, onClose, title, children, actions }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+      <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
+        <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={onClose}>&times;</span>
+        <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">{title}</h2>
+        {children}
+        {actions && (
+          <div className="flex justify-end space-x-2 mt-4">
+            {actions.map((action, index) => (
+              <button
+                key={index}
+                onClick={action.handler}
+                className={`${action.className || 'bg-gray-300 hover:bg-gray-400 text-gray-800'} py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100`}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 // Main App component
 const App = () => {
@@ -98,7 +128,7 @@ const App = () => {
   // eslint-disable-next-line no-unused-vars
   const [auth, setAuth] = useState(null); // auth is used implicitly by Firebase functions
   const [userId, setUserId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Set to true initially
   const [message, setMessage] = useState(null); // For success/error messages
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [activeTab, setActiveTab] = useState('dataEntry'); // 'dataEntry', 'clinics', 'dataView', 'search'
@@ -111,10 +141,7 @@ const App = () => {
   // Clinic Management States
   const [newClinicName, setNewClinicName] = useState('');
   const [editingClinicId, setEditingClinicId] = useState(null);
-  const [editingClinicName, setEditingClinicName] = useState('');
-  const [showAddClinicModal, setShowAddClinicModal] = useState(false);
-  const [showEditClinicModal, setShowEditClinicModal] = useState(false);
-  const [showDeleteClinicModal, setShowDeleteClinicModal] = useState(false);
+  const [editingClinicName, setNewEditingClinicName] = useState(''); // Renamed for clarity with setter
   const [clinicToDelete, setClinicToDelete] = useState(null);
 
   // Data View States
@@ -125,23 +152,24 @@ const App = () => {
   // Search States
   const [searchMrn, setSearchMrn] = useState('');
   const [searchClinic, setSearchClinic] = useState('');
-  const [searchDate, setSearchDate] = useState('');
+  const [searchDate, setSearchDate] = useState(''); // Changed to useState('')
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
   // Patient Update/Delete States
-  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null); // Holds the patient object being edited
-  const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null); // Holds the patient object to delete
-  const [showDeleteAllPatientsModal, setShowDeleteAllPatientsModal] = useState(false);
 
   // QR Scanner States
   const [scanMode, setScanMode] = useState(false);
   const html5QrCodeScannerRef = useRef(null);
+  const [cameraError, setCameraError] = useState(null); // State for camera errors
 
   // Clinic Search State for Data Entry Tab (for filtering dropdown)
   const [clinicSearchQuery, setClinicSearchQuery] = useState('');
+
+  // State to manage which modal is open
+  const [currentModal, setCurrentModal] = useState(null); // 'addClinic', 'editClinic', 'deleteClinic', 'editPatient', 'deletePatient', 'deleteAllPatients'
 
 
   // Effect to apply dark mode class to HTML element
@@ -182,7 +210,6 @@ const App = () => {
       const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
         if (user) {
           setUserId(user.uid);
-          setLoading(false);
         } else {
           try {
             if (initialAuthToken) {
@@ -190,19 +217,23 @@ const App = () => {
             } else {
               await signInAnonymously(firebaseAuth);
             }
+            // After successful anonymous or custom token sign-in, set userId
+            // onAuthStateChanged will trigger again with the new user, so this might be redundant
+            // but ensures userId is set if onAuthStateChanged doesn't immediately re-fire for some reason.
+            setUserId(firebaseAuth.currentUser?.uid || crypto.randomUUID());
           } catch (authError) {
             console.error("Firebase Auth Error:", authError);
             showMessage("Failed to authenticate. Please try again.", "error");
-            setLoading(false);
           }
         }
+        setLoading(false); // Set loading to false once auth state is determined
       });
 
       return () => unsubscribe();
     } catch (initError) {
       console.error("Firebase Initialization Error:", initError);
       showMessage("Failed to initialize Firebase. Check console for details.", "error");
-      setLoading(false);
+      setLoading(false); // Ensure loading is false even if init fails
     }
   }, []);
 
@@ -316,7 +347,6 @@ const App = () => {
       }, (err) => {
         console.error("Firestore Daily Summary Fetch Error:", err);
         showMessage("Failed to fetch daily summary data.", "error");
-        setViewLoading(false);
       });
 
       return () => unsubscribe();
@@ -328,6 +358,7 @@ const App = () => {
   // QR Scanner Logic
   useEffect(() => {
     if (activeTab === 'dataEntry' && scanMode) {
+      setCameraError(null); // Clear previous errors
       const html5QrCode = new Html5QrcodeScanner(
         "reader",
         { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -335,7 +366,6 @@ const App = () => {
       );
 
       const onScanSuccess = (decodedText, decodedResult) => {
-        // Handle the scanned code here.
         setMrn(decodedText);
         showMessage(`MRN Scanned: ${decodedText}`, 'success');
         html5QrCode.stop().then(() => {
@@ -347,10 +377,22 @@ const App = () => {
       };
 
       const onScanFailure = (error) => {
-        // Handle scan failures here, e.g., no QR code found in the camera feed
-        // console.warn(`QR Scan Error: ${error}`);
+        // Log detailed error for debugging
+        console.error("QR Scan Error:", error);
+
+        // Provide user-friendly feedback based on common error types
+        if (error.includes("NotAllowedError") || error.includes("Permission denied")) {
+          setCameraError("Camera access denied. Please allow camera permissions in your browser settings for this site.");
+        } else if (error.includes("NotFoundError")) {
+          setCameraError("No camera found. Please ensure you have a camera connected and enabled.");
+        } else if (error.includes("NotReadableError")) {
+          setCameraError("Camera is already in use or not accessible. Please close other apps using the camera.");
+        } else {
+          setCameraError(`Failed to start camera: ${error}. Please try again or check browser settings.`);
+        }
       };
 
+      // Start the scanner
       html5QrCode.render(onScanSuccess, onScanFailure);
       html5QrCodeScannerRef.current = html5QrCode; // Store the scanner instance
 
@@ -358,8 +400,10 @@ const App = () => {
       // Stop the scanner if not in scan mode or tab changes
       html5QrCodeScannerRef.current.stop().then(() => {
         console.log("Scanner stopped.");
+        setCameraError(null); // Clear error when stopping
       }).catch((err) => {
         console.error("Failed to stop scanner on unmount/tab change:", err);
+        setCameraError("Error stopping camera. You might need to refresh the page.");
       });
       html5QrCodeScannerRef.current = null;
     }
@@ -413,7 +457,7 @@ const App = () => {
         time_spent: durationMinutes, // Store as minutes (integer) for 'time_spent' field
         date: entryDateFormatted, // Store as MM/DD/YYYY
         time_in: timeInFullStr, // Store as MM/DD/YYYY HH:MM
-        time_out: timeOutFullStr, // Store as MM/DD/YYYY HH:MM
+        time_out: timeOutFullStr, // MM/DD/YYYY HH:MM
         timestamp: serverTimestamp(),
       });
       setMrn('');
@@ -438,7 +482,7 @@ const App = () => {
     try {
       await addDoc(collection(db, `artifacts/${appId}/users/${userId}/clinics`), { name: newClinicName.trim() });
       setNewClinicName('');
-      setShowAddClinicModal(false);
+      setCurrentModal(null); // Close modal
       showMessage("Clinic added successfully!", "success");
     } catch (e) {
       console.error("Error adding clinic:", e);
@@ -459,8 +503,8 @@ const App = () => {
       const clinicRef = doc(db, `artifacts/${appId}/users/${userId}/clinics`, editingClinicId);
       await updateDoc(clinicRef, { name: editingClinicName.trim() });
       setEditingClinicId(null);
-      setEditingClinicName('');
-      setShowEditClinicModal(false);
+      setNewEditingClinicName(''); // Use the correct setter
+      setCurrentModal(null); // Close modal
       showMessage("Clinic updated successfully!", "success");
     } catch (e) {
       console.error("Error updating clinic:", e);
@@ -493,7 +537,7 @@ const App = () => {
       await batch.commit();
 
       setClinicToDelete(null);
-      setShowDeleteClinicModal(false);
+      setCurrentModal(null); // Close modal
       showMessage(`Clinic "${clinicToDelete.name}" deleted successfully. Associated patient entries updated to "Other".`, "success");
     } catch (e) {
       console.error("Error deleting clinic:", e);
@@ -584,7 +628,7 @@ const App = () => {
       // 'duration' in the editingPatient state will now represent minutes for the input field
       duration: patient.time_spent || 0, // Use time_spent directly as duration in minutes
     });
-    setShowEditPatientModal(true);
+    setCurrentModal('editPatient');
   };
 
   const handleUpdatePatient = async () => {
@@ -609,42 +653,36 @@ const App = () => {
 
     let finalTimeInDt = null;
     let finalTimeOutDt = null;
-    let finalTimeSpentMinutes = updatedDurationMinutes; // Default to input duration in minutes
-    let finalDurationHours = updatedDurationMinutes / 60; // Calculate hours from minutes for 'duration' field
+    let finalTimeSpentMinutes = updatedDurationMinutes;
+    let finalDurationHours = updatedDurationMinutes / 60;
 
-    // Logic to calculate times/duration based on provided inputs
     const tiDtFromInput = combineDateAndTime(updatedDateYYYYMMDD, updatedTimeInHHMM);
     const toDtFromInput = combineDateAndTime(updatedDateYYYYMMDD, updatedTimeOutHHMM);
 
     if (tiDtFromInput && toDtFromInput) {
-      // Both time in and time out are provided, calculate duration
       if (toDtFromInput.getTime() > tiDtFromInput.getTime()) {
         finalTimeInDt = tiDtFromInput;
         finalTimeOutDt = toDtFromInput;
         finalTimeSpentMinutes = Math.round((toDtFromInput.getTime() - tiDtFromInput.getTime()) / (60 * 1000));
-        finalDurationHours = finalTimeSpentMinutes / 60; // Update hours based on new minutes
+        finalDurationHours = finalTimeSpentMinutes / 60;
       } else {
         showMessage("Time Out must be after Time In.", "error");
         return;
       }
     } else if (tiDtFromInput && !isNaN(updatedDurationMinutes)) {
-      // Time In and Duration (minutes) provided, calculate Time Out
       finalTimeInDt = tiDtFromInput;
-      finalTimeSpentMinutes = updatedDurationMinutes; // Use provided minutes
-      finalDurationHours = finalTimeSpentMinutes / 60; // Calculate hours
+      finalTimeSpentMinutes = updatedDurationMinutes;
+      finalDurationHours = finalTimeSpentMinutes / 60;
       finalTimeOutDt = new Date(tiDtFromInput.getTime() + finalTimeSpentMinutes * 60 * 1000);
     } else if (toDtFromInput && !isNaN(updatedDurationMinutes)) {
-      // Time Out and Duration (minutes) provided, calculate Time In
       finalTimeOutDt = toDtFromInput;
-      finalTimeSpentMinutes = updatedDurationMinutes; // Use provided minutes
-      finalDurationHours = finalTimeSpentMinutes / 60; // Calculate hours
+      finalTimeSpentMinutes = updatedDurationMinutes;
+      finalDurationHours = finalTimeSpentMinutes / 60;
       finalTimeInDt = new Date(toDtFromInput.getTime() - finalTimeSpentMinutes * 60 * 1000);
     } else {
-      // Fallback if not enough info to calculate times, use existing or default
       showMessage("Please provide enough information (Time In/Out or Duration) to calculate times.", "error");
       return;
     }
-
 
     try {
       const patientRef = doc(db, `artifacts/${appId}/users/${userId}/patient_entries`, id);
@@ -657,7 +695,7 @@ const App = () => {
         time_in: finalTimeInDt ? formatDateTimeForFirestore(finalTimeInDt) : '',
         time_out: finalTimeOutDt ? formatDateTimeForFirestore(finalTimeOutDt) : '',
       });
-      setShowEditPatientModal(false);
+      setCurrentModal(null); // Close modal
       setEditingPatient(null);
       showMessage("Patient record updated successfully!", "success");
     } catch (e) {
@@ -668,7 +706,7 @@ const App = () => {
 
   const handleDeletePatientClick = (patient) => {
     setPatientToDelete(patient);
-    setShowDeletePatientModal(true);
+    setCurrentModal('deletePatient');
   };
 
   const handleDeletePatient = async () => {
@@ -679,7 +717,7 @@ const App = () => {
 
     try {
       await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/patient_entries`, patientToDelete.id));
-      setShowDeletePatientModal(false);
+      setCurrentModal(null); // Close modal
       setPatientToDelete(null);
       showMessage(`Patient record for MRN ${patientToDelete.mrn} deleted successfully.`, "success");
     } catch (e) {
@@ -689,7 +727,7 @@ const App = () => {
   };
 
   const handleDeleteAllPatientsClick = () => {
-    setShowDeleteAllPatientsModal(true);
+    setCurrentModal('deleteAllPatients');
   };
 
   const handleDeleteAllPatients = async () => {
@@ -708,7 +746,7 @@ const App = () => {
       });
 
       await batch.commit();
-      setShowDeleteAllPatientsModal(false);
+      setCurrentModal(null); // Close modal
       showMessage(`All ${querySnapshot.size} records deleted successfully.`, "success");
     } catch (e) {
       console.error("Error deleting all patient records:", e);
@@ -803,7 +841,21 @@ const App = () => {
           <>
             <div className="form-container max-w-md mx-auto p-5 bg-white rounded-xl shadow-xl dark:bg-gray-600 dark:shadow-2xl">
               <div className="qr-scanner mb-5 rounded-lg overflow-hidden">
+                {scanMode && !cameraError && (
+                  <p className="text-center text-gray-600 dark:text-gray-300 mb-2">Loading camera...</p>
+                )}
                 <div id="reader" style={{ width: '100%' }}></div>
+                {cameraError && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md mt-4 dark:bg-red-700 dark:border-red-600 dark:text-red-100">
+                    <p className="font-bold">Camera Error:</p>
+                    <p>{cameraError}</p>
+                    {cameraError.includes("denied") && (
+                      <p className="mt-2 text-sm">
+                        To enable camera: Go to your phone's browser settings (e.g., Chrome, Safari) &gt; Site Settings / Permissions &gt; Camera &gt; Allow for this website.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setScanMode(!scanMode)}
@@ -814,7 +866,8 @@ const App = () => {
 
               <button
                 onClick={handleAddEntry}
-                className="w-full bg-gradient-to-br from-[#007bff] to-[#0056b3] text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 ease-in-out hover:translate-y-[-2px] hover:shadow-lg mb-5 dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
+                disabled={loading} // Disable button while loading
+                className={`w-full bg-gradient-to-br from-[#007bff] to-[#0056b3] text-white py-3 px-4 rounded-lg font-bold transition-all duration-300 ease-in-out hover:translate-y-[-2px] hover:shadow-lg mb-5 dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Add Entry
               </button>
@@ -827,7 +880,8 @@ const App = () => {
                   id="entryDate"
                   value={entryDate}
                   onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  disabled={loading} // Disable input while loading
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div className="form-group mb-5">
@@ -840,8 +894,9 @@ const App = () => {
                   value={mrn}
                   onChange={(e) => setMrn(e.target.value)}
                   placeholder="e.g., 123456"
-                  readOnly={scanMode} // Make MRN read-only when scanning
-                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${scanMode ? 'bg-gray-200 cursor-not-allowed dark:bg-gray-600' : ''}`}
+                  readOnly={scanMode || loading} // Make MRN read-only when scanning or loading
+                  disabled={loading} // Disable input while loading
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${scanMode || loading ? 'bg-gray-200 cursor-not-allowed dark:bg-gray-600' : ''}`}
                 />
               </div>
               <div className="form-group mb-5">
@@ -854,7 +909,8 @@ const App = () => {
                   value={clinicSearchQuery}
                   onChange={(e) => setClinicSearchQuery(e.target.value)}
                   placeholder="Start typing clinic name..."
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  disabled={loading} // Disable input while loading
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
               </div>
               <div className="form-group mb-5">
@@ -865,7 +921,8 @@ const App = () => {
                   id="clinic"
                   value={clinic}
                   onChange={(e) => setClinic(e.target.value)}
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'%23007bff\'%3e%3cpath%20d=\'M7%2010l5%205%205-5z\'/%3e%3c/svg%3e')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  disabled={loading} // Disable input while loading
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('data:image/svg+xml;charset=UTF-8,%3csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20viewBox=\'0%200%2024%2024\'%20fill=\'%23007bff\'%3e%3cpath%20d=\'M7%2010l5%205%205-5z\'/%3e%3c/svg%3e')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select a Clinic</option>
                   {filteredClinics.map((c) => (
@@ -885,7 +942,8 @@ const App = () => {
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
                   placeholder="e.g., 90"
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  disabled={loading} // Disable input while loading
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   min="1" // Minimum duration of 1 minute
                 />
               </div>
@@ -917,7 +975,6 @@ const App = () => {
                         <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(entry.mrn)}>
                           {entry.mrn}
                         </td>
-                        <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.clinic}</td>
                         <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.time_spent}</td>
                         <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_in))}>
                           {extractTimeFromFirestoreFormat(entry.time_in)}
@@ -1120,7 +1177,8 @@ const App = () => {
                       <th className="p-2 text-left text-sm font-medium">Clinic</th>
                       <th className="p-2 text-left text-sm font-medium">Duration (min)</th>
                       <th className="p-2 text-left text-sm font-medium">Time In</th>
-                      <th className="p-2 text-left text-sm font-medium rounded-tr-lg">Time Out</th>
+                      <th className="p-2 text-left text-sm font-medium">Time Out</th>
+                      <th className="p-2 text-left text-sm font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1129,17 +1187,45 @@ const App = () => {
                         <td className="p-2 text-gray-800 text-sm dark:text-gray-200">
                           {entry.date}
                         </td>
-                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(entry.mrn)}>{entry.mrn}</td>
+                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(entry.mrn)}>
+                          {entry.mrn}
+                        </td>
                         <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.clinic}</td>
                         <td className="p-2 text-gray-800 text-sm dark:text-gray-200">{entry.time_spent}</td>
-                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_in))}>{extractTimeFromFirestoreFormat(entry.time_in)}</td>
-                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_out))}>{extractTimeFromFirestoreFormat(entry.time_out)}</td>
+                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_in))}>
+                          {extractTimeFromFirestoreFormat(entry.time_in)}
+                        </td>
+                        <td className="p-2 text-gray-800 text-sm cursor-pointer hover:underline dark:text-gray-200" onClick={() => copyToClipboard(extractTimeFromFirestoreFormat(entry.time_out))}>
+                          {extractTimeFromFirestoreFormat(entry.time_out)}
+                        </td>
+                        <td className="p-2 text-gray-800 text-sm flex space-x-2">
+                          <button
+                            onClick={() => handleEditPatientClick(entry)}
+                            className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-1 px-3 rounded-md text-xs transition-all duration-300 ease-in-out hover:translate-y-[-1px] hover:shadow-md dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeletePatientClick(entry)}
+                            className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-1 px-3 rounded-md text-xs transition-all duration-300 ease-in-out hover:translate-y-[-1px] hover:shadow-md dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={handleDeleteAllPatientsClick}
+                className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:scale-105 dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
+              >
+                Delete All Records
+              </button>
+            </div>
           </>
         )}
 
@@ -1149,7 +1235,7 @@ const App = () => {
           <>
             <div className="flex justify-end mb-4">
               <button
-                onClick={() => setShowAddClinicModal(true)}
+                onClick={() => setCurrentModal('addClinic')}
                 className="bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 ease-in-out transform hover:scale-105 dark:from-green-700 dark:to-green-800 dark:hover:from-green-800 dark:hover:to-green-900"
               >
                 Add New Clinic
@@ -1175,8 +1261,8 @@ const App = () => {
                           <button
                             onClick={() => {
                               setEditingClinicId(c.id);
-                              setEditingClinicName(c.name);
-                              setShowEditClinicModal(true);
+                              setNewEditingClinicName(c.name); // Use the correct setter
+                              setCurrentModal('editClinic');
                             }}
                             className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-1 px-3 rounded-md text-xs transition-all duration-300 ease-in-out hover:translate-y-[-1px] hover:shadow-md dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
                           >
@@ -1185,7 +1271,7 @@ const App = () => {
                           <button
                             onClick={() => {
                               setClinicToDelete(c);
-                              setShowDeleteClinicModal(true);
+                              setCurrentModal('deleteClinic');
                             }}
                             className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-1 px-3 rounded-md text-xs transition-all duration-300 ease-in-out hover:translate-y-[-1px] hover:shadow-md dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
                           >
@@ -1202,103 +1288,70 @@ const App = () => {
         )}
       </div>
 
-      {/* Add Clinic Modal */}
-      {showAddClinicModal && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowAddClinicModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Add New Clinic</h2>
-            <input
-              type="text"
-              value={newClinicName}
-              onChange={(e) => setNewClinicName(e.target.value)}
-              placeholder="Enter clinic name"
-              className="w-full p-2 border border-gray-300 rounded-md mb-4 dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowAddClinicModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddClinic}
-                className="bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-2 px-4 rounded-md dark:from-green-700 dark:to-green-800 dark:hover:from-green-800 dark:hover:to-green-900"
-              >
-                Add Clinic
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals */}
+      <GenericModal
+        isOpen={currentModal === 'addClinic'}
+        onClose={() => setCurrentModal(null)}
+        title="Add New Clinic"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Add Clinic', handler: handleAddClinic, className: 'bg-gradient-to-br from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white' }
+        ]}
+      >
+        <input
+          type="text"
+          value={newClinicName}
+          onChange={(e) => setNewClinicName(e.target.value)}
+          placeholder="Enter clinic name"
+          className="w-full p-2 border border-gray-300 rounded-md mb-4 dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+        />
+      </GenericModal>
 
-      {/* Edit Clinic Modal */}
-      {showEditClinicModal && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowEditClinicModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Edit Clinic</h2>
-            <input
-              type="text"
-              value={editingClinicName}
-              onChange={(e) => setEditingClinicName(e.target.value)}
-              placeholder="Enter new clinic name"
-              className="w-full p-2 border border-gray-300 rounded-md mb-4 dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
-            />
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowEditClinicModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateClinic}
-                className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2 px-4 rounded-md dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GenericModal
+        isOpen={currentModal === 'editClinic'}
+        onClose={() => setCurrentModal(null)}
+        title="Edit Clinic"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Save Changes', handler: handleUpdateClinic, className: 'bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white' }
+        ]}
+      >
+        <input
+          type="text"
+          value={editingClinicName}
+          onChange={(e) => setNewEditingClinicName(e.target.value)} // Use the correct setter
+          placeholder="Enter new clinic name"
+          className="w-full p-2 border border-gray-300 rounded-md mb-4 dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+        />
+      </GenericModal>
 
-      {/* Delete Clinic Confirmation Modal */}
-      {showDeleteClinicModal && clinicToDelete && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowDeleteClinicModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Confirm Delete</h2>
-            <p className="mb-4 dark:text-gray-200">
-              Are you sure you want to delete clinic "
-              <span className="font-bold">{clinicToDelete.name}</span>"?
-              All patient entries associated with this clinic will be updated to "Other".
-            </p>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowDeleteClinicModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteClinic}
-                className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2 px-4 rounded-md dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GenericModal
+        isOpen={currentModal === 'deleteClinic'}
+        onClose={() => setCurrentModal(null)}
+        title="Confirm Delete"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Delete', handler: handleDeleteClinic, className: 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white' }
+        ]}
+      >
+        <p className="mb-4 dark:text-gray-200">
+          Are you sure you want to delete clinic "
+          <span className="font-bold">{clinicToDelete?.name}</span>"?
+          All patient entries associated with this clinic will be updated to "Other".
+        </p>
+      </GenericModal>
 
-      {/* Edit Patient Modal */}
-      {showEditPatientModal && editingPatient && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowEditPatientModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Edit Patient Record</h2>
+      <GenericModal
+        isOpen={currentModal === 'editPatient'}
+        onClose={() => setCurrentModal(null)}
+        title="Edit Patient Record"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Save Changes', handler: handleUpdatePatient, className: 'bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white' }
+        ]}
+      >
+        {editingPatient && (
+          <>
             <div className="form-group mb-4">
               <label htmlFor="editMrn" className="block font-medium mb-2 text-[#555] dark:text-gray-200">MRN</label>
               <input
@@ -1366,79 +1419,39 @@ const App = () => {
                 className="w-full p-2 text-sm border border-[#ddd] rounded-lg dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
               />
             </div>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowEditPatientModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdatePatient}
-                className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2 px-4 rounded-md dark:from-blue-700 dark:to-blue-800 dark:hover:from-blue-800 dark:hover:to-blue-900"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </GenericModal>
 
-      {/* Delete Patient Confirmation Modal */}
-      {showDeletePatientModal && patientToDelete && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowDeletePatientModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Confirm Deletion</h2>
-            <p className="mb-4 dark:text-gray-200">
-              Are you sure you want to delete the record for MRN "
-              <span className="font-bold">{patientToDelete.mrn}</span>" from Clinic "
-              <span className="font-bold">{patientToDelete.clinic}</span>"?
-            </p>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowDeletePatientModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeletePatient}
-                className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2 px-4 rounded-md dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GenericModal
+        isOpen={currentModal === 'deletePatient'}
+        onClose={() => setCurrentModal(null)}
+        title="Confirm Deletion"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Delete', handler: handleDeletePatient, className: 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white' }
+        ]}
+      >
+        <p className="mb-4 dark:text-gray-200">
+          Are you sure you want to delete the record for MRN "
+          <span className="font-bold">{patientToDelete?.mrn}</span>" from Clinic "
+          <span className="font-bold">{patientToDelete?.clinic}</span>"?
+        </p>
+      </GenericModal>
 
-      {/* Delete All Patients Confirmation Modal */}
-      {showDeleteAllPatientsModal && (
-        <div className="popup fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="popup-content bg-white rounded-lg p-6 shadow-xl w-full max-w-sm relative dark:bg-gray-700 dark:shadow-2xl">
-            <span className="close absolute top-2 right-4 text-gray-500 text-3xl font-bold cursor-pointer hover:text-black dark:text-gray-300 dark:hover:text-white" onClick={() => setShowDeleteAllPatientsModal(false)}>&times;</span>
-            <h2 className="text-xl font-semibold mb-4 dark:text-gray-100">Confirm Delete All Records</h2>
-            <p className="mb-4 dark:text-gray-200">
-              <span className="font-bold text-red-600">WARNING:</span> This action will permanently delete ALL patient records. This cannot be undone. Are you absolutely sure you want to proceed?
-            </p>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowDeleteAllPatientsModal(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 px-4 rounded-md dark:bg-gray-500 dark:hover:bg-gray-400 dark:text-gray-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteAllPatients}
-                className="bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2 px-4 rounded-md dark:from-red-700 dark:to-red-800 dark:hover:from-red-800 dark:hover:to-red-900"
-              >
-                Delete All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <GenericModal
+        isOpen={currentModal === 'deleteAllPatients'}
+        onClose={() => setCurrentModal(null)}
+        title="Confirm Delete All Records"
+        actions={[
+          { label: 'Cancel', handler: () => setCurrentModal(null) },
+          { label: 'Delete All', handler: handleDeleteAllPatients, className: 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white' }
+        ]}
+      >
+        <p className="mb-4 dark:text-gray-200">
+          <span className="font-bold text-red-600">WARNING:</span> This action will permanently delete ALL patient records. This cannot be undone. Are you absolutely sure you want to proceed?
+        </p>
+      </GenericModal>
     </div>
   );
 };
