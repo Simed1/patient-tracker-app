@@ -273,7 +273,6 @@ const App = () => {
           ...doc.data()
         }));
         setClinics(fetchedClinics);
-        console.log("Fetched clinics:", fetchedClinics); // ADDED LOG
 
         // If no clinics exist, seed the database
         if (fetchedClinics.length === 0) {
@@ -333,7 +332,7 @@ const App = () => {
             };
           }
           clinicsData[entry.clinic].patients.add(entry.mrn);
-          clinicsData[entry.clinic].totalDurationMinutes += clinicsData[entry.clinic].totalDurationMinutes + entry.time_spent; // Sum the 'time_spent' field (minutes)
+          clinicsData[entry.clinic].totalDurationMinutes += entry.time_spent; // Sum the 'time_spent' field (minutes)
           clinicsData[entry.clinic].entries.push(entry);
         });
 
@@ -762,8 +761,6 @@ const App = () => {
   const filteredClinics = clinics.filter(c =>
     c.name.toLowerCase().includes(clinicSearchQuery.toLowerCase())
   );
-  console.log("Clinic search query:", clinicSearchQuery); // ADDED LOG
-  console.log("Filtered clinics for dropdown:", filteredClinics); // ADDED LOG
 
 
   if (loading) {
@@ -928,7 +925,7 @@ const App = () => {
                   value={clinic}
                   onChange={(e) => setClinic(e.target.value)}
                   disabled={loading} // Disable input while loading
-                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select a Clinic</option>
                   {filteredClinics.map((c) => (
@@ -1139,7 +1136,7 @@ const App = () => {
                   id="searchClinic"
                   value={searchClinic}
                   onChange={(e) => setSearchClinic(e.target.value)}
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
                 >
                   <option value="">Select a Clinic</option>
                   {clinics.map((c) => (
@@ -1375,7 +1372,7 @@ const App = () => {
                 id="editClinic"
                 value={editingPatient.clinic}
                 onChange={(e) => setEditingPatient({ ...editingPatient, clinic: e.target.value })}
-                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none bg-[url('${SVG_ARROW_DOWN}')] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
               >
                 <option value="">Select a Clinic</option>
                 {clinics.map((c) => (
