@@ -332,7 +332,7 @@ const App = () => {
             };
           }
           clinicsData[entry.clinic].patients.add(entry.mrn);
-          clinicsData[entry.clinic].totalDurationMinutes += entry.time_spent; // Sum the 'time_spent' field (minutes)
+          clinicsData[entry.clinic].totalDurationMinutes += clinicsData[entry.clinic].totalDurationMinutes + entry.time_spent; // Sum the 'time_spent' field (minutes)
           clinicsData[entry.clinic].entries.push(entry);
         });
 
@@ -356,6 +356,7 @@ const App = () => {
     } else {
       setDailySummary(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db, userId, activeTab, selectedViewDate]);
 
   // QR Scanner Logic
@@ -402,7 +403,6 @@ const App = () => {
     } else if (html5QrCodeScannerRef.current) {
       // Stop the scanner if not in scan mode or tab changes
       html5QrCodeScannerRef.current.stop().then(() => {
-        console.log("Scanner stopped.");
         setCameraError(null); // Clear error when stopping
       }).catch((err) => {
         console.error("Failed to stop scanner on unmount/tab change:", err);
@@ -415,7 +415,6 @@ const App = () => {
     return () => {
       if (html5QrCodeScannerRef.current) {
         html5QrCodeScannerRef.current.stop().then(() => {
-          console.log("Scanner stopped on component unmount.");
         }).catch((err) => {
           console.error("Failed to stop scanner during cleanup:", err);
         });
@@ -522,12 +521,7 @@ const App = () => {
     }
     try {
       const patientEntriesRef = collection(db, `artifacts/${appId}/users/${userId}/patient_entries`);
-      const allPatientEntriesSnapshot = await new Promise((resolve) => {
-        const unsubscribe = onSnapshot(patientEntriesRef, (snapshot) => {
-          unsubscribe();
-          resolve(snapshot);
-        });
-      });
+      const allPatientEntriesSnapshot = await getDocs(patientEntriesRef); // Use getDocs for one-time fetch
 
       const batch = db.batch();
       allPatientEntriesSnapshot.forEach((docSnap) => {
@@ -584,7 +578,7 @@ const App = () => {
     setSearchResults([]); // Clear previous results
 
     try {
-      let q = collection(db, `artifacts/${appId}/users/${userId}/patient_entries`);
+      let entriesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/patient_entries`);
       const conditions = [];
 
       if (searchMrn.trim()) {
@@ -597,10 +591,11 @@ const App = () => {
         conditions.push(where('date', '==', formatDateToMMDDYYYY(searchDate.trim())));
       }
 
+      let q;
       if (conditions.length > 0) {
-          q = query(collection(db, `artifacts/${appId}/users/${userId}/patient_entries`), ...conditions, orderBy('timestamp', 'desc'));
+          q = query(entriesCollectionRef, ...conditions, orderBy('timestamp', 'desc'));
       } else {
-          q = query(collection(db, `artifacts/${appId}/users/${userId}/patient_entries`), orderBy('timestamp', 'desc'));
+          q = query(entriesCollectionRef, orderBy('timestamp', 'desc'));
       }
 
       const querySnapshot = await getDocs(q);
@@ -925,7 +920,8 @@ const App = () => {
                   value={clinic}
                   onChange={(e) => setClinic(e.target.value)}
                   disabled={loading} // Disable input while loading
-                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  style={{ backgroundImage: `url('${SVG_ARROW_DOWN}')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '12px' }}
                 >
                   <option value="">Select a Clinic</option>
                   {filteredClinics.map((c) => (
@@ -965,7 +961,7 @@ const App = () => {
                       <th className="p-2 text-left text-sm font-medium">Clinic</th>
                       <th className="p-2 text-left text-sm font-medium">Duration (min)</th>
                       <th className="p-2 text-left text-sm font-medium">Time In</th>
-                      <th className="p-2 text-left text-sm font-medium rounded-tr-lg">Time Out</th>
+                      <th className="p-2 text-left text-sm font-medium">Time Out</th>
                       <th className="p-2 text-left text-sm font-medium">Actions</th>
                     </tr>
                   </thead>
@@ -1136,7 +1132,8 @@ const App = () => {
                   id="searchClinic"
                   value={searchClinic}
                   onChange={(e) => setSearchClinic(e.target.value)}
-                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  className="w-full p-2 text-sm border border-[#ddd] rounded-lg bg-[#f9f9f9] transition-all duration-300 ease-in-out focus:border-[#007bff] focus:shadow-[0_0_0_3px_rgba(0,123,255,0.2)] outline-none appearance-none dark:bg-gray-700 dark:border-gray-500 dark:text-gray-100 dark:focus:border-blue-400"
+                  style={{ backgroundImage: `url('${SVG_ARROW_DOWN}')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '12px' }}
                 >
                   <option value="">Select a Clinic</option>
                   {clinics.map((c) => (
@@ -1372,7 +1369,8 @@ const App = () => {
                 id="editClinic"
                 value={editingPatient.clinic}
                 onChange={(e) => setEditingPatient({ ...editingPatient, clinic: e.target.value })}
-                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none bg-[url(\`${SVG_ARROW_DOWN}\`)] bg-no-repeat bg-[right_10px_center] bg-[length:12px] dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+                className="w-full p-2 text-sm border border-[#ddd] rounded-lg appearance-none dark:bg-gray-800 dark:border-gray-500 dark:text-gray-100"
+                style={{ backgroundImage: `url('${SVG_ARROW_DOWN}')`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center', backgroundSize: '12px' }}
               >
                 <option value="">Select a Clinic</option>
                 {clinics.map((c) => (
